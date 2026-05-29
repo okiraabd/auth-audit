@@ -25,9 +25,10 @@
 13. [Testing](#testing)
 14. [Per-Phase Script Reference](#per-phase-script-reference)
 15. [Requirements & Dependencies](#requirements--dependencies)
-16. [Troubleshooting](#troubleshooting)
-17. [Contributing](#contributing)
-18. [License](#license)
+16. [Kiterunner Integration](#kiterunner-integration)
+17. [Troubleshooting](#troubleshooting)
+18. [Contributing](#contributing)
+19. [License](#license)
 
 ---
 
@@ -43,6 +44,7 @@
 - **S3 Cloud Reporting**: Automatic upload of results to S3-compatible storage
 - **Rich HTML Dashboard**: Self-contained, offline-capable report
 - **Active Discovery**: Automatic route discovery for domains with mostly 404 responses
+- **Kiterunner Integration**: Optional high-performance route discovery using kiterunner (520k routes)
 - **91 Unit Tests**: Full coverage across all modules
 
 ---
@@ -578,6 +580,65 @@ Sample output:
 Both services must expose an **OpenAI-compatible Chat Completions API** (`POST /v1/chat/completions`). You can use any compatible backend — Ollama, LM Studio, Local LLM, OpenAI, Azure OpenAI, etc.
 
 > **Hermes** must be an *agentic* model with browser tools (navigate, click, screenshot). A plain LLM without browser capability will not work for Tier 3.
+
+---
+
+## Kiterunner Integration
+
+**Kiterunner** is an optional, high-performance route discovery tool that can be used instead of (or in addition to) the bundled wordlist. It uses a massive curated wordlist of **520k routes** for comprehensive API endpoint discovery.
+
+### How it works
+
+When a domain returns mostly 404 responses during initial probing, the pipeline triggers **Active Discovery** to find hidden routes:
+
+1. **Bundled wordlist** (always available) — Probes a curated list of common API/auth paths
+2. **Kiterunner** (optional) — If enabled and available, runs the `kr` binary for deeper scanning
+
+### Prerequisites
+
+- [Kiterunner](https://github.com/assetnote/kiterunner) installed and available on `PATH`
+- `kr` command accessible from terminal
+
+### Configuration
+
+Set the following in your `.env`:
+
+```dotenv
+# Enable kiterunner
+KITERUNNER_ENABLED=true
+
+# Path to kiterunner binary (default: kr)
+# KITERUNNER_BINARY=kr
+
+# Path to kiterunner wordlist file (default: routes.kite in CWD)
+# KITERUNNER_WORDLIST=/path/to/routes.kite
+
+# Concurrent threads for scanning (default: 3)
+# KITERUNNER_CONCURRENCY=3
+
+# Timeout in seconds (default: 120)
+# KITERUNNER_TIMEOUT=120
+```
+
+### When to use kiterunner
+
+| Scenario | Recommendation |
+|---|---|
+| Quick audit, few domains | Bundled wordlist is sufficient |
+| Large-scale audit, many domains | Enable kiterunner for better coverage |
+| Domains with custom API paths | Kiterunner recommended (520k routes) |
+| Limited bandwidth/time | Use bundled wordlist only |
+
+### Verification
+
+To verify kiterunner is available:
+
+```bash
+# Check if kr is on PATH
+kr --version
+
+# If not found, install from https://github.com/assetnote/kiterunner
+```
 
 ---
 
