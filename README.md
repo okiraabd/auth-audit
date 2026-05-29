@@ -1,24 +1,49 @@
 # auth-audit 🔐
 
-> A production-grade, 3-tier domain authentication detection pipeline.  
-> Feed it a list of proxy hosts — it tells you exactly which ones are protected, open, or exposed.
+> A production-grade, multi-tier domain authentication detection pipeline. Feed it a list of proxy hosts — it tells you exactly which ones are protected, open, or exposed.
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Pydantic v2](https://img.shields.io/badge/pydantic-v2-green.svg)](https://docs.pydantic.dev/latest/)
 
 ---
 
 ## Table of Contents
 
-1. [What It Does](#what-it-does)
-2. [How It Works — The 3-Tier Pipeline](#how-it-works)
-3. [Verdict Reference](#verdict-reference)
+1. [Overview](#overview)
+2. [What It Does](#what-it-does)
+3. [Architecture — The 3-Tier Pipeline](#architecture--the-3-tier-pipeline)
 4. [Project Structure](#project-structure)
-5. [Setup & Installation](#setup--installation)
+5. [Installation](#installation)
 6. [Configuration](#configuration)
 7. [Input File Format](#input-file-format)
-8. [Running the Pipeline](#running-the-pipeline)
+8. [Usage](#usage)
 9. [Output & Reports](#output--reports)
-10. [Running Tests](#running-tests)
-11. [Per-Phase Script Reference](#per-phase-script-reference)
-12. [Requirements & Dependencies](#requirements--dependencies)
+10. [Verdict Reference](#verdict-reference)
+11. [Service Type Reference](#service-type-reference)
+12. [Verdict Decision Logic](#verdict-decision-logic)
+13. [Testing](#testing)
+14. [Per-Phase Script Reference](#per-phase-script-reference)
+15. [Requirements & Dependencies](#requirements--dependencies)
+16. [Troubleshooting](#troubleshooting)
+17. [Contributing](#contributing)
+18. [License](#license)
+
+---
+
+## Overview
+
+`auth-audit` is a Python-based security audit pipeline that determines the authentication status of a list of domains. It uses a progressive escalation strategy — starting with fast, deterministic HTTP probing, then escalating to LLM reasoning, and finally to real browser automation when needed.
+
+### Key Features
+
+- **3-Tier Progressive Escalation**: Fast HTTP probes → LLM reasoning → Browser automation
+- **Async Architecture**: High concurrency with `asyncio` and `httpx`
+- **Checkpointing**: End-to-end JSONL streaming — no data loss on crash
+- **S3 Cloud Reporting**: Automatic upload of results to S3-compatible storage
+- **Rich HTML Dashboard**: Self-contained, offline-capable report
+- **Active Discovery**: Automatic route discovery for domains with mostly 404 responses
+- **91 Unit Tests**: Full coverage across all modules
 
 ---
 
@@ -38,7 +63,7 @@ It produces a **JSON results file** and a **rich interactive HTML dashboard** fr
 
 ---
 
-## How It Works
+## Architecture — The 3-Tier Pipeline
 
 The pipeline uses a **3-tier progressive escalation** strategy. Each domain only escalates to the next tier if the current one can't reach a confident verdict. This keeps the pipeline fast for easy cases and thorough for hard ones.
 
@@ -47,7 +72,7 @@ The pipeline uses a **3-tier progressive escalation** strategy. Each domain only
 │ DATA GATHERING (Fast, Bulk)                          │
 │  • Concurrently probes common standard paths (/, /api)   │
 └──────────────────────────────┬───────────────────────┘
-                               │
+                              │
        [Are >90% of successful probes returning 404?]
            / Yes                                 \ No
           ▼                                       │
@@ -63,8 +88,8 @@ The pipeline uses a **3-tier progressive escalation** strategy. Each domain only
 │  • Extracts signals (401, CORS, login forms)         │
 │  • Deterministic rule engine → initial verdict       │
 └──────────────────────────────┬───────────────────────┘
-                               │ [If score < 60 or ambiguous]
-                               ▼
+                              │ [If score < 60 or ambiguous]
+                              ▼
 ┌──────────────────────────────────────────────────────┐
 │ TIER 2 — LLM Reasoning (OpenAI-compatible endpoint)  │
 │                                                      │
@@ -74,8 +99,8 @@ The pipeline uses a **3-tier progressive escalation** strategy. Each domain only
 │  • Returns verdict + reasoning + confidence          │
 │  • If SPA shell / JS wall → escalate to Tier 3      │
 └──────────────────────────────┬───────────────────────┘
-                               │ needs_browser=True
-                               ▼
+                              │ needs_browser=True
+                              ▼
 ┌──────────────────────────────────────────────────────┐
 │ TIER 3 — Hermes Browser Agent (real browser, on-demand)│
 │                                                      │
@@ -85,48 +110,19 @@ The pipeline uses a **3-tier progressive escalation** strategy. Each domain only
 │  • Interacts with login CTAs if present              │
 │  • Returns JSON verdict with visual evidence         │
 └──────────────────────────────┬───────────────────────┘
+                              │
+                              ▼
+                    DomainResult (final)
                                │
-                               ▼
-                     DomainResult (final)
-                                │
-                    ┌───────────┼───────────┐
-                    ▼           ▼           ▼
-            results.jsonl  results.json  results.html
-           (Streamed E2E)   (Final)       (Final)
+                  ┌────────────┼────────────┐
+                  ▼            ▼            ▼
+           results.jsonl  results.json  results.html
+          (Streamed E2E)   (Final)       (Final)
 ```
 
 ### Verdict Priority
 
 The final verdict is taken from the **highest tier that ran**. Tier 3 overrides Tier 2, which overrides Tier 1 — but only if the higher tier returned a confident, non-UNKNOWN verdict.
-
----
-
-## Verdict Reference
-
-| Verdict | Emoji | Meaning |
-|---|---|---|
-| `PROTECTED` | 🔒 | Strong auth; login required to access anything |
-| `PARTIAL` | ⚠️ | Some paths protected, others not |
-| `OPEN` | 🔓 | Public content, no auth required |
-| `OPEN_API` | 🔓 | REST API reachable without auth (data unclear) |
-| `OPEN_API_CRITICAL` | 🚨 | REST API exposing sensitive data without auth |
-| `OPEN_DOCS` | 📄 | Swagger / OpenAPI / Redoc docs exposed without auth |
-| `GRAPHQL_OPEN` | 🔓 | GraphQL endpoint reachable; introspection unknown |
-| `GRAPHQL_CRITICAL` | 🚨 | GraphQL schema/introspection fully exposed without auth |
-| `UNREACHABLE` | 💀 | Domain could not be reached on any probed path |
-| `UNKNOWN` | ❓ | Insufficient evidence; manual review recommended |
-
-### Service Type Reference
-
-The pipeline also classifies the underlying architecture of the domain:
-
-| Service Type | Meaning |
-|---|---|
-| `WEB_APP` | HTML-based applications, including Single Page Applications (SPAs) like React/Vue. |
-| `REST_API` | JSON-based API endpoints (includes S3 buckets returning XML/JSON errors). |
-| `GRAPHQL` | GraphQL endpoints. |
-| `MIXED` | A combination of a web frontend and API endpoints on the same domain. |
-| `UNKNOWN` | Cannot determine service type. |
 
 ---
 
@@ -139,8 +135,7 @@ auth-audit/
 ├── output/
 │   ├── results.jsonl             # 💾 Intermediate checkpoints (streams E2E)
 │   ├── results.json              # 📊 Machine-readable results (final)
-│   ├── results.html              # 🌐 HTML dashboard (final)
-│   └── screenshots/             # 📸 Browser screenshots from Hermes
+│   └── results.html              # 🌐 HTML dashboard (final)
 │
 ├── scripts/
 │   ├── run_pipeline.py           # 🚀 Main E2E runner
@@ -173,7 +168,7 @@ auth-audit/
 │   │
 │   ├── tier2/
 │   │   ├── html_summarizer.py    # Condenses HTML to ~4000 chars for LLM
-│   │   ├── llm_client.py        # Async httpx client for Local LLM API
+│   │   ├── llm_client.py         # Async httpx client for Local LLM API
 │   │   ├── prompts.py            # System prompt + resilient JSON parser
 │   │   └── llm_analyzer.py       # Orchestrates Tier 2 escalation
 │   │
@@ -200,11 +195,11 @@ auth-audit/
 
 ---
 
-## Setup & Installation
+## Installation
 
 ### Prerequisites
 
-- Python **3.11+**
+- **Python 3.11+**
 - Access to a **local LLM endpoint** (OpenAI-compatible, e.g. Ollama, LM Studio, Local LLM) for Tier 2
 - Access to the **Hermes Agent API** (Tier 3 browser automation)
 
@@ -232,65 +227,41 @@ cp .env.example .env
 
 All configuration is done via environment variables or the `.env` file. The pipeline reads `.env` automatically from the working directory.
 
-### Full `.env` Reference
+### Quick Start `.env`
 
 ```dotenv
 # ── Input / Output ────────────────────────────────────────────────
-PROXY_HOSTS_FILE=data/proxy_hosts.json   # Path to your input JSON
-OUTPUT_DIR=output                        # Where reports are saved
-RESULTS_JSONL=output/results.jsonl
+PROXY_HOSTS_FILE=data/proxy_hosts.json
+OUTPUT_DIR=output
 RESULTS_JSON=output/results.json
 RESULTS_HTML=output/results.html
-SCREENSHOTS_DIR=output/screenshots
 
-# ── Active Discovery ─────────────────────────────────
-DISCOVERY_ENABLED=true
-DISCOVERY_TRIGGER_404_RATIO=0.9
-KITERUNNER_ENABLED=false
-# KITERUNNER_BINARY=kr
-# KITERUNNER_WORDLIST=/path/to/routes.kite
-
-# ── Data Gathering — HTTP Probing ─────────────────────────────────
-PROBER_CONCURRENCY=10       # Max concurrent domain probes (1-200)
-HTTP_TIMEOUT=15             # Per-request timeout in seconds
-HTTP_MAX_REDIRECTS=10       # Max redirect hops to follow
-BODY_PREVIEW_BYTES=8192     # Max bytes of body to capture per probe
+# ── HTTP Probing ──────────────────────────────────────────────────
+PROBER_CONCURRENCY=10
+HTTP_TIMEOUT=15
+HTTP_MAX_REDIRECTS=10
+BODY_PREVIEW_BYTES=8192
 HTTP_USER_AGENT=auth-audit/0.1 (security audit pipeline)
 
-# ── Tier 2 — Local LLM Reasoning ──────────────────────────────────
-LLM_BASE_URL=http://localhost:8000/v1   # Your LLM endpoint (Ollama, LM Studio, Local LLM…)
-LLM_API_KEY=                            # Leave blank if not needed
-LLM_MODEL=your-model-name              # Model to use
+# ── Tier 2 — Local LLM ────────────────────────────────────────────
+LLM_BASE_URL=http://localhost:8000/v1
+LLM_MODEL=qwen3.6-27b
 LLM_MAX_TOKENS=2048
 LLM_TEMPERATURE=0.1
-LLM_MAX_HTML_CHARS=4000         # Max chars of HTML sent to LLM
-TIER2_ESCALATION_THRESHOLD=60   # Tier 1 score below this → always escalate
+TIER2_ESCALATION_THRESHOLD=60
 
 # ── Tier 3 — Hermes Browser Agent ────────────────────────────────
-HERMES_BASE_URL=http://localhost:8080/v1   # Hermes API (OpenAI-compat)
+HERMES_BASE_URL=http://localhost:8080/v1
 HERMES_API_KEY=your-hermes-api-key
-HERMES_TASK_TIMEOUT=120    # Seconds per browser task (browser is slow!)
-HERMES_CONCURRENCY=1       # MUST be 1 to prevent screenshot bleed
-
-# ── Retry / Resilience ───────────────────────────────────────────
-HTTP_RETRY_ATTEMPTS=3
-HTTP_RETRY_WAIT=1.0
-LLM_RETRY_ATTEMPTS=2
-
-# ── Logging ──────────────────────────────────────────────────────
-LOG_LEVEL=INFO   # DEBUG | INFO | WARNING | ERROR
-LOG_RICH=true    # Pretty Rich console output (true/false)
-
-# ── Screenshot Storage (S3 / Ceph) ───────────────────────────────
-# S3_ENDPOINT=http://s3.amazonaws.com
-# S3_BUCKET=auth-audit-screenshots
-# S3_ACCESS_KEY=your-access-key
-# S3_SECRET_KEY=your-secret-key
-# S3_SCREENSHOT_PREFIX=auth-audit/screenshots
+HERMES_TASK_TIMEOUT=120
+HERMES_CONCURRENCY=5
 ```
 
-
 > **Tip:** Any setting can also be passed as a real environment variable, which takes priority over `.env`. This is useful for CI/CD.
+
+### Full Configuration Reference
+
+See [`.env.example`](.env.example) for the complete list of configuration options with detailed comments.
 
 ---
 
@@ -299,8 +270,6 @@ LOG_RICH=true    # Pretty Rich console output (true/false)
 The pipeline accepts two JSON formats.
 
 ### Format 1 — NPM (Nginx Proxy Manager export)
-
-This is the native format exported from Nginx Proxy Manager:
 
 ```json
 [
@@ -312,21 +281,11 @@ This is the native format exported from Nginx Proxy Manager:
     "forward_port": 443,
     "ssl_forced": true,
     "enabled": true
-  },
-  {
-    "id": 2,
-    "domain_names": ["disabled.example.com"],
-    "forward_scheme": "http",
-    "forward_host": "192.168.1.11",
-    "forward_port": 8080,
-    "enabled": false          // ← this entry will be SKIPPED
   }
 ]
 ```
 
 ### Format 2 — Simple flat list
-
-A simpler format if you don't have NPM data:
 
 ```json
 [
@@ -345,12 +304,12 @@ A simpler format if you don't have NPM data:
 
 ---
 
-## Running the Pipeline
+## Usage
 
 ### Full E2E Run (recommended)
 
 ```bash
-# Using default input (data/proxy_hosts.json) and output (output/)
+# Using default input and output
 python scripts/run_pipeline.py
 
 # Custom input file
@@ -361,6 +320,9 @@ python scripts/run_pipeline.py --input data/my_hosts.json --output-dir output/au
 
 # Verbose debug logging
 python scripts/run_pipeline.py --log-level DEBUG
+
+# Skip Tier 3 (Hermes browser automation)
+python scripts/run_pipeline.py --no-hermes
 ```
 
 ### What you'll see in the terminal
@@ -372,11 +334,9 @@ python scripts/run_pipeline.py --log-level DEBUG
 │ Output: output                                               │
 ╰──────────────────────────────────────────────────────────────╯
 
-INFO  ▶ Active Discovery: Running route discovery for 2 domain(s)...
 INFO  ▶ Tier 1: Probing 5 domain(s)...
 INFO    app.example.com                  20+ paths OK
 INFO    api.example.com                  20+ paths OK
-...
 
 INFO  ▶ Tier 2+3: Analyzing 5 domain(s)...
 INFO  Escalating app.example.com to Tier 2 LLM...
@@ -387,8 +347,6 @@ INFO  [T3] Escalating app.example.com to Hermes...
 ├─────────────────────────┼─────────────────────┼───────────┼──────┼──────┼────────┤
 │ app.example.com         │ 🔒 PROTECTED        │ MIXED     │  95% │  T3  │        │
 │ api.example.com         │ 📄 OPEN_DOCS        │ REST_API  │  82% │  T1  │        │
-│ admin.example.com       │ 🔒 PROTECTED        │ WEB_APP   │  90% │  T2  │        │
-│ ...                     │ ...                 │ ...       │ ...  │ ...  │ ...    │
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ✓ JSON report: output/results.json
@@ -397,11 +355,10 @@ INFO  [T3] Escalating app.example.com to Hermes...
 
 ### Fault Tolerance & Checkpointing
 
-The pipeline uses an **End-to-End (E2E) streaming architecture**. 
-As soon as a domain completes Tier 3, it is instantly written to `output/results.jsonl`. 
+The pipeline uses an **End-to-End (E2E) streaming architecture**. As soon as a domain completes Tier 3, it is instantly written to `output/results.jsonl`.
 
-If your internet drops, the API crashes, or you hit `Ctrl+C` after 5 hours, **you will not lose data.** 
-When you restart the script, it will automatically:
+If your internet drops, the API crashes, or you hit `Ctrl+C` after 5 hours, **you will not lose data.** When you restart the script, it will automatically:
+
 1. Detect `results.jsonl`
 2. Parse the completed domains
 3. Skip them and seamlessly resume scanning the remaining domains
@@ -413,9 +370,10 @@ When you restart the script, it will automatically:
 ### S3 Cloud Reporting & Checkpointing
 
 If S3 is configured in `.env` (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`), the pipeline will automatically:
-1. **Periodic Checkpointing**: Upload `results.jsonl` to S3 every 50 domains. If the pipeline server crashes or restarts, your E2E state is safely stored in the cloud.
-2. **Auto-Upload Reports**: At the end of the run, the pipeline uploads `results.html` and `results.json` into a timestamped folder (e.g., `auth-audit/reports/run_20260530_101500/results.html`), preserving historical audits.
-3. **Latest Bookmark**: It also copies the report to `auth-audit/reports/latest/results.html`, giving you a permanent URL to bookmark for the most recent scan.
+
+1. **Periodic Checkpointing**: Upload `results.jsonl` to S3 every 50 domains
+2. **Auto-Upload Reports**: At the end of the run, the pipeline uploads `results.html` and `results.json` into a timestamped folder
+3. **Latest Bookmark**: It also copies the report to `auth-audit/reports/latest/results.html`
 
 ### `output/results.json`
 
@@ -461,7 +419,64 @@ A fully self-contained HTML dashboard (no CDN dependencies) with:
 
 ---
 
-## Running Tests
+## Verdict Reference
+
+| Verdict | Emoji | Meaning |
+|---|---|---|
+| `PROTECTED` | 🔒 | Strong auth; login required to access anything |
+| `PARTIAL` | ⚠️ | Some paths protected, others not |
+| `OPEN` | 🔓 | Public content, no auth required |
+| `OPEN_API` | 🔓 | REST API reachable without auth (data unclear) |
+| `OPEN_API_CRITICAL` | 🚨 | REST API exposing sensitive data without auth |
+| `OPEN_DOCS` | 📄 | Swagger / OpenAPI / Redoc docs exposed without auth |
+| `GRAPHQL_OPEN` | 🔓 | GraphQL endpoint reachable; introspection unknown |
+| `GRAPHQL_CRITICAL` | 🚨 | GraphQL schema/introspection fully exposed without auth |
+| `UNREACHABLE` | 💀 | Domain could not be reached on any probed path |
+| `UNKNOWN` | ❓ | Insufficient evidence; manual review recommended |
+
+---
+
+## Service Type Reference
+
+| Service Type | Meaning |
+|---|---|
+| `WEB_APP` | HTML-based applications, including Single Page Applications (SPAs) like React/Vue. |
+| `REST_API` | JSON-based API endpoints (includes S3 buckets returning XML/JSON errors). |
+| `GRAPHQL` | GraphQL endpoints. |
+| `MIXED` | A combination of a web frontend and API endpoints on the same domain. |
+| `UNKNOWN` | Cannot determine service type. |
+
+---
+
+## Verdict Decision Logic
+
+```
+Tier 1 Rule Engine Score
+  │
+  ├── ≥ 80  →  High confidence verdict from Tier 1 (no escalation)
+  │
+  ├── 60–79 →  Medium confidence: escalate to Tier 2 LLM
+  │               LLM refines verdict and confidence
+  │               If LLM says needs_browser=True → escalate to Tier 3
+  │
+  └── < 60  →  Low confidence: always escalate to Tier 2
+                LLM refines, may further escalate to Tier 3
+```
+
+**When does Tier 3 trigger?**
+
+The LLM in Tier 2 sets `needs_browser_escalation=true` when it detects a **WEB_APP** that cannot be evaluated statically:
+
+- **0-Character HTML Bodies**: The page returns a completely empty visual text payload (e.g. `soup.get_text()` is empty), which is a definitive signature of a modern SPA shell requiring JavaScript execution.
+- **SPA Shells**: Tiny HTML bodies (e.g., `<div id="root"></div>`) that load React/Vue/Angular bundles.
+- **Dynamic Content**: The page returns generic loading content that changes after JS runs.
+- **Static Ambiguity**: The LLM cannot determine auth status from static HTML alone.
+
+**Final verdict priority:** Tier 3 > Tier 2 > Tier 1
+
+---
+
+## Testing
 
 ```bash
 # Run all 91 tests
@@ -519,6 +534,7 @@ python scripts/test_phase5_hermes.py --domain app.example.com --reason "SPA shel
 ```
 
 Sample output:
+
 ```
 ┌───────────── Hermes Browser Agent — app.example.com ─────────────┐
 │ Verdict      : PROTECTED                                          │
@@ -535,7 +551,7 @@ Sample output:
 
 ## Requirements & Dependencies
 
-### Python
+### Python Packages
 
 | Package | Purpose |
 |---|---|
@@ -548,6 +564,7 @@ Sample output:
 | `rich>=13.7` | Terminal output formatting |
 | `orjson>=3.10` | Fast JSON serialization |
 | `python-dotenv>=1.0` | `.env` file support |
+| `boto3>=1.34` | S3 cloud reporting |
 | `pytest>=8.2` | Test runner |
 | `pytest-asyncio>=0.23` | Async test support |
 
@@ -564,30 +581,46 @@ Both services must expose an **OpenAI-compatible Chat Completions API** (`POST /
 
 ---
 
-## How Verdicts Are Decided
+## Troubleshooting
 
+### Common Issues
+
+| Problem | Solution |
+|---|---|
+| `Connection refused` on LLM calls | Check that your LLM server is running on the configured port |
+| `LLM_TIMEOUT` | Increase `LLM_MAX_TOKENS` or check LLM server load |
+| `Hermes task timeout` | Increase `HERMES_TASK_TIMEOUT` (browser tasks are slow) |
+| All domains show `UNREACHABLE` | Check network connectivity and proxy configuration |
+| `results.jsonl` not found | Run the pipeline at least once to create the checkpoint |
+
+### Debug Mode
+
+```bash
+# Enable debug logging for detailed output
+python scripts/run_pipeline.py --log-level DEBUG
+
+# Or set in .env
+LOG_LEVEL=DEBUG
 ```
-Tier 1 Rule Engine Score
-  │
-  ├── ≥ 80  →  High confidence verdict from Tier 1 (no escalation)
-  │
-  ├── 60–79 →  Medium confidence: escalate to Tier 2 LLM
-  │               LLM refines verdict and confidence
-  │               If LLM says needs_browser=True → escalate to Tier 3
-  │
-  └── < 60  →  Low confidence: always escalate to Tier 2
-                LLM refines, may further escalate to Tier 3
-```
 
-**When does Tier 3 trigger?**  
-The LLM in Tier 2 sets `needs_browser_escalation=true` when it detects a **WEB_APP** that cannot be evaluated statically:
-- **0-Character HTML Bodies**: The page returns a completely empty visual text payload (e.g. `soup.get_text()` is empty), which is a definitive signature of a modern SPA shell requiring JavaScript execution.
-- **SPA Shells**: Tiny HTML bodies (e.g., `<div id="root"></div>`) that load React/Vue/Angular bundles.
-- **Dynamic Content**: The page returns generic loading content that changes after JS runs.
-- **Static Ambiguity**: The LLM cannot determine auth status from static HTML alone.
+---
 
-**Final verdict priority:** Tier 3 > Tier 2 > Tier 1  
-(Each tier only overrides if it returns a non-UNKNOWN result with confidence > 0)
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Make your changes
+4. Write or update tests as needed
+5. Ensure all tests pass (`python -m pytest tests/ -v`)
+6. Submit a pull request
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
