@@ -1,0 +1,32 @@
+[
+  {
+    "id": 3,
+    "domain_names": ["app.example.internal"],
+    "forward_scheme": "http",
+    "forward_host": "10.12.120.78",
+    "forward_port": 17227,
+    "ssl_forced": true,
+    "enabled": true,
+    "meta": {"nginx_online": true, "nginx_err": null}
+  },
+  {
+    "id": 4,
+    "domain_names": ["api.example.internal"],
+    "forward_scheme": "http",
+    "forward_host": "10.12.120.79",
+    "forward_port": 8080,
+    "ssl_forced": true,
+    "enabled": true,
+    "meta": {"nginx_online": true, "nginx_err": null}
+  },
+  {
+    "id": 5,
+    "domain_names": ["multi1.example.internal", "multi2.example.internal"],
+    "forward_scheme": "http",
+    "forward_host": "10.12.120.80",
+    "forward_port": 3000,
+    "ssl_forced": false,
+    "enabled": true,
+    "meta": {"nginx_online": true, "nginx_err": null}
+  }
+]

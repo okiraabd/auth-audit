@@ -1,0 +1,20 @@
+{# report.html.j2 — Main Jinja2 template for the auth-audit HTML report #}
+{# Rendered by src/reporting/html_report.py                              #}
+{# Context variables:                                                     #}
+{#   results       — list of DomainResult dicts                          #}
+{#   generated_at  — ISO 8601 UTC string                                 #}
+{#   summary       — dict of verdict label → count                       #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>auth-audit — Domain Authentication Report</title>
+  {# Inline styles and JS will be added during Phase 6 implementation #}
+</head>
+<body>
+  <h1>auth-audit Report</h1>
+  <p>Generated at: {{ generated_at }}</p>
+  {# Full template implementation deferred to Phase 6 #}
+</body>
+</html>

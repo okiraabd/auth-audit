@@ -1,0 +1,5 @@
+[
+  {"domain": "simple-a.example.internal"},
+  {"domain": "simple-b.example.internal", "enabled": true},
+  {"domain": "https://simple-c.example.internal/"}
+]

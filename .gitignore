@@ -1,0 +1,36 @@
+# auth-audit .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Output (generated at runtime — do not commit)
+output/results.json
+output/results.jsonl
+output/results.html
+output/screenshots/*.png
+output/screenshots/*.jpg
+output/audit.log
+
+# Test artefacts
+.pytest_cache/
+.coverage
+htmlcov/

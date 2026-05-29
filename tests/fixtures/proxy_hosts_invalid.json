@@ -1,0 +1,8 @@
+[
+  {"id": 20, "domain_names": ["valid.example.internal"], "ssl_forced": true, "enabled": true},
+  {"id": 21},
+  {"id": 22, "domain_names": [], "ssl_forced": true, "enabled": true},
+  {"id": 23, "domain_names": ["   "], "ssl_forced": true, "enabled": true},
+  "not_a_dict_entry",
+  42
+]

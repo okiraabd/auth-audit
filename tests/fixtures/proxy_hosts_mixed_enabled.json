@@ -1,0 +1,25 @@
+[
+  {
+    "id": 10,
+    "domain_names": ["enabled-a.example.internal"],
+    "ssl_forced": true,
+    "enabled": true
+  },
+  {
+    "id": 11,
+    "domain_names": ["disabled-b.example.internal"],
+    "ssl_forced": true,
+    "enabled": false
+  },
+  {
+    "id": 12,
+    "domain_names": ["noflag-c.example.internal"],
+    "ssl_forced": true
+  },
+  {
+    "id": 13,
+    "domain_names": ["disabled-d.example.internal"],
+    "ssl_forced": false,
+    "enabled": false
+  }
+]

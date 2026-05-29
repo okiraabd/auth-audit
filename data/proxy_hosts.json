@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "domain_names": [
+      "app.example.com"
+    ],
+    "forward_scheme": "http",
+    "forward_host": "192.168.1.100",
+    "forward_port": 8080,
+    "enabled": true
+  },
+  {
+    "id": 2,
+    "domain_names": [
+      "api.example.com"
+    ],
+    "forward_scheme": "http",
+    "forward_host": "192.168.1.101",
+    "forward_port": 3000,
+    "enabled": true
+  },
+  {
+    "id": 3,
+    "domain_names": [
+      "old-dashboard.example.com"
+    ],
+    "forward_scheme": "http",
+    "forward_host": "192.168.1.102",
+    "forward_port": 80,
+    "enabled": false
+  }
+]
