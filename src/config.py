@@ -62,10 +62,6 @@ class Settings(BaseSettings):
         default=Path("output/results.html"),
         description="Path where the HTML report is written.",
     )
-    screenshots_dir: Path = Field(
-        default=Path("output/screenshots"),
-        description="Directory for browser screenshots from Tier 3 escalation.",
-    )
 
     # -------------------------------------------------------------------------
     # Active Discovery — API route discovery (pre-probe wordlist / kiterunner)

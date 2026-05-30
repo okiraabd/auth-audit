@@ -26,8 +26,6 @@ ENV/
 output/results.json
 output/results.jsonl
 output/results.html
-output/screenshots/*.png
-output/screenshots/*.jpg
 output/audit.log
 
 # Test artefacts
