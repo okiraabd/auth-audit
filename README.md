@@ -313,20 +313,28 @@ The pipeline accepts two JSON formats.
 ### Full E2E Run (recommended)
 
 ```bash
-# Using default input and output
+# Basic run
 python scripts/run_pipeline.py
 
-# Custom input file
-python scripts/run_pipeline.py --input data/my_hosts.json
+# Run with custom input and output directories
+python scripts/run_pipeline.py --input data/my_hosts.json --output-dir output/run1
+```
 
-# Custom output directory
-python scripts/run_pipeline.py --input data/my_hosts.json --output-dir output/audit-2026
+### Regenerating HTML Reports
+If the pipeline is interrupted or you want to update the report's design without rescanning, you can instantly regenerate the `results.html` file from an existing JSONL checkpoint:
 
-# Verbose debug logging
-python scripts/run_pipeline.py --log-level DEBUG
+```bash
+# Generate the HTML locally
+python scripts/generate_html.py --input output/results.jsonl --output output/recovered.html
 
-# Skip Tier 3 (Hermes browser automation)
-python scripts/run_pipeline.py --no-hermes
+# Limit to first 100 domains for quick testing
+python scripts/generate_html.py --input output/results.jsonl --limit 100
+
+# Upload the regenerated report directly to S3 (lands in a 'recovered' folder by default)
+python scripts/generate_html.py --input output/results.jsonl --upload-s3
+
+# Danger: Overwrite the main latest/results.html dashboard in S3 with the recovered report
+python scripts/generate_html.py --input output/results.jsonl --upload-s3 --update-latest
 ```
 
 ### What you'll see in the terminal
