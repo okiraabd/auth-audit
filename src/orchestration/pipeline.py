@@ -68,8 +68,8 @@ def _assemble_result(
         t2_verdict = tier2_output.get("verdict", "UNKNOWN")
         if t2_verdict and t2_verdict != "UNKNOWN":
             final_verdict = Verdict(t2_verdict)
-        if tier2_output.get("confidence", 0) > confidence:
-            confidence = tier2_output["confidence"]
+        if int(tier2_output.get("confidence", 0)) > confidence:
+            confidence = int(tier2_output["confidence"])
         if tier2_output.get("reasoning"):
             reasoning = tier2_output["reasoning"]
         t2_service = tier2_output.get("service_type")
@@ -82,8 +82,8 @@ def _assemble_result(
         t3_verdict = tier3_output.get("verdict", "UNKNOWN")
         if t3_verdict and t3_verdict != "UNKNOWN":
             final_verdict = Verdict(t3_verdict)
-        if tier3_output.get("confidence", 0) > 0:
-            confidence = tier3_output["confidence"]
+        if int(tier3_output.get("confidence", 0)) > 0:
+            confidence = int(tier3_output["confidence"])
         if tier3_output.get("reasoning"):
             reasoning = tier3_output["reasoning"]
 
@@ -227,7 +227,7 @@ async def _process_domain_full(
             service_type=ServiceType.UNKNOWN,
             final_verdict=Verdict.UNKNOWN,
             confidence=0,
-            tier_reached=0,
+            tier_reached=1,
             signals=[],
             reasoning=f"Pipeline crashed during execution: {exc}",
             evidence=[],
