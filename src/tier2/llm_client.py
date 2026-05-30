@@ -80,7 +80,7 @@ class LLMClient:
         self._retry_attempts = settings.llm_retry_attempts
         self._timeout = httpx.Timeout(
             connect=10.0,
-            read=120.0,  # LLM responses can be slow
+            read=settings.llm_timeout,
             write=10.0,
             pool=10.0,
         )

@@ -251,6 +251,7 @@ LLM_MODEL=qwen3.6-27b
 LLM_MAX_TOKENS=2048
 LLM_TEMPERATURE=0.1
 LLM_CONCURRENCY=5
+LLM_TIMEOUT=120.0
 TIER2_ESCALATION_THRESHOLD=60
 
 # ── Tier 3 — Hermes Browser Agent ────────────────────────────────

@@ -167,6 +167,10 @@ class Settings(BaseSettings):
         default=5,
         description="Maximum number of concurrent Local LLM analysis tasks.",
     )
+    llm_timeout: Annotated[float, Field(gt=0)] = Field(
+        default=120.0,
+        description="Timeout in seconds for Local LLM API requests.",
+    )
 
     # Retry settings for Local LLM API calls
     llm_retry_attempts: Annotated[int, Field(ge=1, le=10)] = Field(
