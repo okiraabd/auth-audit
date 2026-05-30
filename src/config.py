@@ -163,6 +163,10 @@ class Settings(BaseSettings):
             "Domains with rule_score < this value are sent to Tier 2."
         ),
     )
+    llm_concurrency: Annotated[int, Field(ge=1, le=50)] = Field(
+        default=5,
+        description="Maximum number of concurrent Local LLM analysis tasks.",
+    )
 
     # Retry settings for Local LLM API calls
     llm_retry_attempts: Annotated[int, Field(ge=1, le=10)] = Field(

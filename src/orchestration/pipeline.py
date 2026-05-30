@@ -155,6 +155,7 @@ async def _process_domain(
     probe_set: ProbeSet,
     llm_client: LLMClient,
     hermes_client: HermesClient,
+    llm_semaphore: asyncio.Semaphore,
     hermes_semaphore: asyncio.Semaphore,
 ) -> DomainResult:
     """Run Active Discovery → Tier 1 → Tier 2 → (optional) Tier 3 for a single domain."""
@@ -174,7 +175,8 @@ async def _process_domain(
     # Tier 2 — LLM analysis (if needed)
     tier2_output: dict | None = None
     if tier1_output.get("needs_llm", False) or tier1_output["rule_score"] < settings.tier2_escalation_threshold:
-        tier2_output = await analyze_domain(domain, probe_set, tier1_output, llm_client)
+        async with llm_semaphore:
+            tier2_output = await analyze_domain(domain, probe_set, tier1_output, llm_client)
         logger.debug("[T2] %s → %s (conf:%d, hermes:%s)",
                      domain.hostname,
                      tier2_output.get("verdict"),
@@ -211,11 +213,12 @@ async def _process_domain_full(
     http_client,
     llm_client: LLMClient,
     hermes_client: HermesClient,
+    llm_semaphore: asyncio.Semaphore,
     hermes_semaphore: asyncio.Semaphore,
 ) -> DomainResult:
     """End-to-End processing: Tier 1 probing followed by analysis."""
     probe_set = await probe_domain(domain, http_client)
-    return await _process_domain(domain, probe_set, llm_client, hermes_client, hermes_semaphore)
+    return await _process_domain(domain, probe_set, llm_client, hermes_client, llm_semaphore, hermes_semaphore)
 
 
 # ---------------------------------------------------------------------------
@@ -268,13 +271,14 @@ async def run_pipeline(input_file: str | None = None) -> list[DomainResult]:
     # 3. Process pending domains
     logger.info("▶ Processing %d pending domain(s) End-to-End...", len(pending_domains))
     hermes_semaphore = asyncio.Semaphore(settings.hermes_concurrency)
+    llm_semaphore = asyncio.Semaphore(settings.llm_concurrency)
     http_semaphore = asyncio.Semaphore(settings.prober_concurrency)
 
     async with _make_client() as http_client, LLMClient() as llm_client, HermesClient() as hermes_client:
         
         async def bounded_process(domain: Domain) -> DomainResult:
             async with http_semaphore:
-                res = await _process_domain_full(domain, http_client, llm_client, hermes_client, hermes_semaphore)
+                res = await _process_domain_full(domain, http_client, llm_client, hermes_client, llm_semaphore, hermes_semaphore)
                 # Atomic append to JSONL
                 with open(jsonl_path, "a", encoding="utf-8") as f:
                     f.write(res.model_dump_json() + "\n")
