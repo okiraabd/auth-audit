@@ -141,6 +141,7 @@ auth-audit/
 │
 ├── scripts/
 │   ├── run_pipeline.py           # 🚀 Main E2E runner
+│   ├── generate_html.py          # 📄 Generate HTML from JSONL checkpoint
 │   ├── test_phase5_hermes.py     # 🧪 Standalone Hermes test
 │   └── test_phase4_tier2.py      # 🧪 Standalone LLM test
 │
@@ -239,7 +240,7 @@ RESULTS_JSON=output/results.json
 RESULTS_HTML=output/results.html
 
 # ── HTTP Probing ──────────────────────────────────────────────────
-PROBER_CONCURRENCY=10
+PROBER_CONCURRENCY=36
 HTTP_TIMEOUT=15
 HTTP_MAX_REDIRECTS=10
 BODY_PREVIEW_BYTES=8192
@@ -251,13 +252,13 @@ LLM_MODEL=qwen3.6-27b
 LLM_MAX_TOKENS=2048
 LLM_TEMPERATURE=0.1
 LLM_CONCURRENCY=5
-LLM_TIMEOUT=120.0
+LLM_TIMEOUT=240.0
 TIER2_ESCALATION_THRESHOLD=60
 
 # ── Tier 3 — Hermes Browser Agent ────────────────────────────────
 HERMES_BASE_URL=http://localhost:8080/v1
 HERMES_API_KEY=your-hermes-api-key
-HERMES_TASK_TIMEOUT=120
+HERMES_TASK_TIMEOUT=240
 HERMES_CONCURRENCY=5
 ```
 
