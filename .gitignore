@@ -23,10 +23,8 @@ ENV/
 *.swp
 
 # Output (generated at runtime — do not commit)
-output/results.json
-output/results.jsonl
-output/results.html
-output/audit.log
+output/*
+!output/.gitkeep
 
 # Test artefacts
 .pytest_cache/
