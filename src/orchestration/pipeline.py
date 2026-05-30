@@ -287,6 +287,7 @@ async def run_pipeline(input_file: str | None = None) -> list[DomainResult]:
     hermes_semaphore = asyncio.Semaphore(settings.hermes_concurrency)
     llm_semaphore = asyncio.Semaphore(settings.llm_concurrency)
     http_semaphore = asyncio.Semaphore(settings.prober_concurrency)
+    s3_upload_lock = asyncio.Lock()
 
     async with _make_client() as http_client, LLMClient() as llm_client, HermesClient() as hermes_client:
         
@@ -298,27 +299,30 @@ async def run_pipeline(input_file: str | None = None) -> list[DomainResult]:
                     f.write(res.model_dump_json() + "\n")
                 return res
 
-        async def _upload_checkpoint(path: Path) -> None:
-            try:
-                import boto3
-                from botocore.config import Config
-                s3_client = boto3.client(
-                    "s3",
-                    endpoint_url=settings.s3_endpoint,
-                    aws_access_key_id=settings.s3_access_key,
-                    aws_secret_access_key=settings.s3_secret_key,
-                    region_name="us-east-1",
-                    config=Config(connect_timeout=5, read_timeout=15)
-                )
-                report_key = f"{settings.s3_report_prefix.rstrip('/')}/latest_checkpoint.jsonl"
-                
-                def _do_upload():
-                    s3_client.upload_file(str(path), settings.s3_bucket, report_key)
-                
-                await asyncio.to_thread(_do_upload)
-                logger.debug("[S3] Checkpoint uploaded to %s", report_key)
-            except Exception as e:
-                logger.warning("[S3] Failed to upload checkpoint: %s", e)
+        async def _upload_checkpoint(path: Path, force: bool = False) -> None:
+            if not force and s3_upload_lock.locked():
+                return
+            async with s3_upload_lock:
+                try:
+                    import boto3
+                    from botocore.config import Config
+                    s3_client = boto3.client(
+                        "s3",
+                        endpoint_url=settings.s3_endpoint,
+                        aws_access_key_id=settings.s3_access_key,
+                        aws_secret_access_key=settings.s3_secret_key,
+                        region_name="us-east-1",
+                        config=Config(connect_timeout=5, read_timeout=15)
+                    )
+                    report_key = f"{settings.s3_report_prefix.rstrip('/')}/latest_checkpoint.jsonl"
+                    
+                    def _do_upload():
+                        s3_client.upload_file(str(path), settings.s3_bucket, report_key)
+                    
+                    await asyncio.to_thread(_do_upload)
+                    logger.debug("[S3] Checkpoint uploaded to %s", report_key)
+                except Exception as e:
+                    logger.warning("[S3] Failed to upload checkpoint: %s", e)
 
         tasks = [asyncio.create_task(bounded_process(d)) for d in pending_domains]
         
@@ -330,6 +334,11 @@ async def run_pipeline(input_file: str | None = None) -> list[DomainResult]:
             # Periodic sync every 50 domains
             if count % 50 == 0 and settings.s3_enabled:
                 asyncio.create_task(_upload_checkpoint(jsonl_path))
+
+        # Final sync for any remaining domains
+        if settings.s3_enabled and count > 0:
+            logger.info("Executing final S3 checkpoint sync...")
+            await _upload_checkpoint(jsonl_path, force=True)
 
     elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
     logger.info("═══════════════════════════════════════════════")
