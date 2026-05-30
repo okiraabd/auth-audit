@@ -191,7 +191,13 @@ class HermesClient:
                 _call,
                 attempts=2,
                 wait_base=3.0,
-                retryable=(httpx.TransportError, ConnectionError),
+                retryable=(
+                    httpx.TransportError,
+                    ConnectionError,
+                    httpx.TimeoutException,
+                    HermesTimeoutError,
+                    HermesAPIError,
+                ),
             )
         except Exception as exc:
             logger.warning("Hermes failed for %s: %s", domain, exc)

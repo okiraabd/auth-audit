@@ -217,8 +217,22 @@ async def _process_domain_full(
     hermes_semaphore: asyncio.Semaphore,
 ) -> DomainResult:
     """End-to-End processing: Tier 1 probing followed by analysis."""
-    probe_set = await probe_domain(domain, http_client)
-    return await _process_domain(domain, probe_set, llm_client, hermes_client, llm_semaphore, hermes_semaphore)
+    try:
+        probe_set = await probe_domain(domain, http_client)
+        return await _process_domain(domain, probe_set, llm_client, hermes_client, llm_semaphore, hermes_semaphore)
+    except Exception as exc:
+        logger.error("CRITICAL: Pipeline crash processing %s: %s", domain.hostname, exc, exc_info=True)
+        return DomainResult(
+            domain=domain.hostname,
+            service_type=ServiceType.UNKNOWN,
+            final_verdict=Verdict.UNKNOWN,
+            confidence=0,
+            tier_reached=0,
+            signals=[],
+            reasoning=f"Pipeline crashed during execution: {exc}",
+            evidence=[],
+            probe_summary={},
+        )
 
 
 # ---------------------------------------------------------------------------

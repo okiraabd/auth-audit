@@ -200,5 +200,12 @@ class LLMClient:
             _call,
             attempts=attempts,
             wait_base=1.0,
-            retryable=(httpx.TransportError, ConnectionError, OSError),
+            retryable=(
+                httpx.TransportError,
+                ConnectionError,
+                OSError,
+                httpx.TimeoutException,
+                LLMTimeoutError,
+                LLMAPIError,
+            ),
         )

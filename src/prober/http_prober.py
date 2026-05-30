@@ -34,6 +34,7 @@ from config import settings
 from models.domain import Domain
 from models.probes import ProbeResult, ProbeSet
 from prober.path_strategy import classify_path, get_all_paths, is_graphql_path
+from utils.retry import with_http_retry
 from utils.urls import build_probe_url
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ async def _make_client() -> AsyncIterator[httpx.AsyncClient]:
 # ---------------------------------------------------------------------------
 
 
+@with_http_retry()
 async def _probe_one(
     client: httpx.AsyncClient,
     domain: str,
@@ -179,6 +181,7 @@ async def _probe_one(
         )
 
 
+@with_http_retry()
 async def _probe_graphql_introspection(
     client: httpx.AsyncClient,
     domain: str,
