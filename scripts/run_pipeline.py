@@ -142,7 +142,6 @@ async def main() -> int:
         settings.results_json = out / "results.json"
         settings.results_jsonl = out / "results.jsonl"
         settings.results_html = out / "results.html"
-        settings.screenshots_dir = out / "screenshots"
 
     console.print(Panel(
         f"[bold cyan]auth-audit[/bold cyan] — Authentication Detection Pipeline\n"
